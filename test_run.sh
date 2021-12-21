@@ -15,3 +15,6 @@
 
 # SGPT
 # python sgpt/train.py --train_data data/moses/data_10k.csv --valid_data data/moses/data_10k.csv --output_dir result/charRNN/test_10k/ --eval --n_epochs 30
+
+# SmilesRNN
+python SmilesRNN/train.py --train_data data/moses/data_10k.csv --valid_data data/moses/data_10k.csv --output_dir result/SmilesRNN/test_10k/ --eval --n_epochs 30

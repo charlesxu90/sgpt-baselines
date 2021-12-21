@@ -209,8 +209,6 @@ class _ModelTrainingRound:
             f'epoch: {epoch_index}/{self.n_epochs} ({self._get_overall_progress():.1f}%) | '
             f'molecules: {self.n_molecules_so_far} | '
             f'valid_loss: {avg_valid_loss:.4f}')
-        self.model_trainer.valid_extra_log(self.n_molecules_so_far)
-        logger.info('')
 
     def _get_overall_progress(self):
         total_mols = self.n_epochs * len(self.training_data)

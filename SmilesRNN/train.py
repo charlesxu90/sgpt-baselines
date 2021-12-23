@@ -18,7 +18,7 @@ sd = SmilesCharDictionary()
 
 
 def train(train_data, val_data, save_dir, device='cuda', max_len=140, n_epochs=10, lr=1e-3, hidden_size=512, n_layers=3,
-          batch_size=64, rnn_dropout=0.2, print_every=100, valid_every=100):
+          batch_size=64, rnn_dropout=0.2, print_every=100000, valid_every=100000):
     logger.info('Training...')
 
     train_seqs, _ = load_smiles_from_list(train_data, max_len=max_len)
@@ -29,11 +29,8 @@ def train(train_data, val_data, save_dir, device='cuda', max_len=140, n_epochs=1
 
     model = SmilesRnn(input_size=sd.get_char_num(), hidden_size=hidden_size, output_size=sd.get_char_num(),
                       n_layers=n_layers, rnn_dropout=rnn_dropout)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=sd.pad_idx)
-    trainer = SmilesRnnTrainer(model, [criterion], optimizer, save_dir=save_dir, device=device)
-    trainer.fit(train_set, test_set,
-                batch_size=batch_size, print_every=print_every, valid_every=valid_every, n_epochs=n_epochs)
+    trainer = SmilesRnnTrainer(model, save_dir=save_dir, device=device, n_epochs=n_epochs)
+    trainer.fit(train_set, test_set)
     return model
 
 
@@ -63,7 +60,7 @@ def main(args):
     model = train(df_train.SMILES.tolist(), df_valid.SMILES.tolist(), save_dir=args.output_dir, n_epochs=args.n_epochs)
     logger.info(f'Training done, the trained model is in {args.output_dir}')
     if args.eval:
-        run_eval(model, args.output_dir, max_len=args.max_len)
+        run_eval(model, args.output_dir, max_len=args.max_len, num_to_sample=args.num_to_sample)
 
 
 def parse_args():
@@ -76,13 +73,13 @@ def parse_args():
     optional = parser.add_argument_group('Optional')
     optional.add_argument('--n_epochs', default=10, type=int, help='Number of training epochs')
     optional.add_argument('--lr', default=1e-3, type=float, help='RNN learning rate')
-    optional.add_argument('--n_layers', default=8, type=int, help='Number of layers for training')
+    optional.add_argument('--n_layers', default=3, type=int, help='Number of layers of model')
     optional.add_argument('--batch_size', default=512, type=int, help='Size of a mini-batch for gradient descent')
-    optional.add_argument('--n_embd', default=512, type=int, help='Number of embeddings for GPT model')
-    optional.add_argument('--n_head', default=8, type=int, help='Number of attention heads for GPT model')
+    optional.add_argument('--n_embd', default=512, type=int, help='Number of embeddings for model')
     optional.add_argument('--device', default='cuda', type=str, help='Use cuda or cpu, default=cuda')
     optional.add_argument('--max_len', default=140, type=int, help='Max length of a SMILES string')
     optional.add_argument('--eval', action="store_true", help='Evaluate with moses or not, default False')
+    optional.add_argument('--num_to_sample', default=10000, type=int, help='Num of samples to evaluate on moses')
     return parser.parse_args()
 
 

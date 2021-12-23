@@ -49,9 +49,9 @@ def train(training_set: List[str], validation_set: List[str], output_dir, n_epoc
 	return trainer.model
 
 
-def run_eval(model: GPT, output_dir, max_len=140):
+def run_eval(model: GPT, output_dir, max_len=140, num_to_sample=10000):
 	logger.info(f'Generate samples...')
-	smiles = sample(model, num_to_sample=15000, device='cuda', batch_size=64, max_seq_length=max_len)
+	smiles = sample(model, num_to_sample=num_to_sample, device='cuda', batch_size=64, max_seq_length=max_len)
 	logger.info(f'Evaluate on moses...')
 	metrics = moses.get_all_metrics(smiles)
 	logger.info(metrics)
@@ -80,7 +80,7 @@ def main(args):
 
 	logger.info(f'Training done, the trained model is in {args.output_dir}')
 	if args.eval:
-		run_eval(model, args.output_dir, max_len=args.max_len)
+		run_eval(model, args.output_dir, max_len=args.max_len, num_to_sample=args.num_to_sample)
 
 
 def parse_args():
@@ -101,6 +101,7 @@ def parse_args():
 	optional.add_argument('--device', default='cuda', type=str, help='Use cuda or cpu, default=cuda')
 	optional.add_argument('--max_len', default=140, type=int, help='Max length of a SMILES string')
 	optional.add_argument('--eval', action="store_true", help='Evaluate with moses or not, default False')
+	optional.add_argument('--num_to_sample', default=10000, type=int, help='Num of samples to evaluate on moses')
 	return parser.parse_args()
 
 

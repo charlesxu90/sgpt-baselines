@@ -127,7 +127,7 @@ class Trainer:
 
             if not is_train:
                 test_loss = float(np.mean(losses))
-                logger.info("test loss: %f", test_loss)
+                # logger.info("test loss: %f", test_loss)
                 return test_loss
 
         best_loss = float('inf')
@@ -135,8 +135,10 @@ class Trainer:
         for epoch in range(config.max_epochs):
 
             train_loss = run_epoch('train')
+            logger.info(f"train, epoch: {epoch + 1}, loss: {train_loss:.4f}")
             if self.test_dataset is not None:
                 test_loss = run_epoch('test')
+                logger.info(f"test, epoch: {epoch + 1}, loss: {test_loss:.4f}")
 
             # wandb.log({'epoch_valid_loss': test_loss, 'epoch_train_loss': train_loss, 'epoch': epoch + 1})
 
@@ -144,5 +146,5 @@ class Trainer:
             good_model = self.test_dataset is None or test_loss < best_loss
             if self.config.ckpt_path is not None and good_model:
                 best_loss = test_loss
-                print(f'Saving at epoch {epoch + 1}')
+                # print(f'Saving at epoch {epoch + 1}')
                 self.save_checkpoint()

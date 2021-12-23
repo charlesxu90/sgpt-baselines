@@ -22,7 +22,11 @@ from moses.utils import get_mol
 from utils import check_novelty, sample, canonic_smiles
 from rdkit import Chem
 from tqdm import tqdm
+import logging
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+logger.addHandler(logging.NullHandler())
 
 def sample_smiles(model, content, block_size, num_to_sample=15000, device='cuda'):
 	gen_iter = math.ceil(num_to_sample / 512)
@@ -49,10 +53,10 @@ def sample_smiles(model, content, block_size, num_to_sample=15000, device='cuda'
 
 	return smiles
 
-def run_eval(model, content, output_dir, max_len=140):
+def run_eval(model, content, output_dir, max_len=140, num_to_sample=10000):
 	print(f'Generate samples...')
 
-	smiles = sample_smiles(model, content, block_size=max_len, num_to_sample=15000)
+	smiles = sample_smiles(model, content, block_size=max_len, num_to_sample=num_to_sample)
 	print(f'Evaluate on moses...')
 	metrics = moses.get_all_metrics(smiles)
 	print(metrics)
@@ -87,6 +91,7 @@ if __name__ == '__main__':
 	parser.add_argument('--learning_rate', type=int, default = 6e-4, help="learning rate", required=False)
 	parser.add_argument('--lstm_layers', type=int, default = 2, help="number of layers in lstm", required=False)
 	parser.add_argument('--eval', action="store_true", help='Evaluate with moses or not, default False')
+	parser.add_argument('--num_to_sample', default=10000, type=int, help='Num of samples to evaluate on moses')
 
 	args = parser.parse_args()
 
@@ -154,4 +159,4 @@ if __name__ == '__main__':
 	# trainer.train(wandb)
 	trainer.train()
 
-	run_eval(trainer.model, whole_string, output_dir=args.output_dir, max_len=max_len)
+	run_eval(trainer.model, whole_string, output_dir=args.output_dir, max_len=max_len, num_to_sample=args.num_to_sample)

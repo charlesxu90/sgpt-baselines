@@ -42,7 +42,6 @@ def run_eval(model, output_dir, max_len=140, num_to_sample=15000):
 
 
 def main(args):
-
 	df_train = pd.read_csv(args.train_data)
 	df_valid = pd.read_csv(args.valid_data)
 
@@ -56,7 +55,7 @@ def main(args):
 	model = train(df_train.SMILES.tolist(), df_valid.SMILES.tolist(), save_dir=args.output_dir, n_epochs=args.n_epochs)
 	logger.info(f'Training done, the trained model is in {args.output_dir}')
 	if args.eval:
-		run_eval(model, args.output_dir, max_len=args.max_len)
+		run_eval(model, args.output_dir, max_len=args.max_len, num_to_sample=args.num_to_sample)
 
 
 def parse_args():
@@ -72,11 +71,12 @@ def parse_args():
 	optional.add_argument('--lr', default=1e-3, type=float, help='RNN learning rate')
 	optional.add_argument('--n_layers', default=8, type=int, help='Number of layers for training')
 	optional.add_argument('--batch_size', default=512, type=int, help='Size of a mini-batch for gradient descent')
-	optional.add_argument('--n_embd', default=512, type=int, help='Number of embeddings for GPT model')
-	optional.add_argument('--n_head', default=8, type=int, help='Number of attention heads for GPT model')
+	optional.add_argument('--n_embd', default=512, type=int, help='Number of embeddings for model')
+	optional.add_argument('--n_head', default=8, type=int, help='Number of attention heads for model')
 	optional.add_argument('--device', default='cuda', type=str, help='Use cuda or cpu, default=cuda')
 	optional.add_argument('--max_len', default=140, type=int, help='Max length of a SMILES string')
 	optional.add_argument('--eval', action="store_true", help='Evaluate with moses or not, default False')
+	optional.add_argument('--num_to_sample', default=10000, type=int, help='Num of samples to evaluate on moses')
 	return parser.parse_args()
 
 

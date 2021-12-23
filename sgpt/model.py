@@ -76,14 +76,35 @@ class Block(nn.Module):
 
 
 class SGPT(nn.Module):
-    def __init__(self, vocab_size=47, n_embd=512, lstm_layers=3, dropout=0.2, padding_idx=sd.pad_idx,
-                 attn_layers=2):
+    def __init__(self, vocab_size=47, n_embd=256, lstm_layers=2, attn_layers=2, dropout=0.2, padding_idx=sd.pad_idx):
         super(SGPT, self).__init__()
-        self.embedding_layer = nn.Embedding(vocab_size, vocab_size, padding_idx=padding_idx)
-        self.lstm_layer = nn.LSTM(vocab_size, n_embd, lstm_layers, dropout=dropout, batch_first=True)
+        self.embedding_layer = nn.Embedding(vocab_size, n_embd, padding_idx=padding_idx)
+        self.lstm_layer1 = nn.LSTM(n_embd, n_embd, num_layers=lstm_layers, dropout=dropout, batch_first=True)
+        self.attn_layers = nn.Sequential(*[Block(n_embd=n_embd) for _ in range(attn_layers)])
+        self.lstm_layer2 = nn.LSTM(n_embd, n_embd, num_layers=lstm_layers, dropout=dropout, batch_first=True)
         self.linear_layer = nn.Linear(n_embd, vocab_size)
-        # transformer
-        self.attn_layers = nn.Sequential(*[Block(n_embd=512) for _ in range(attn_layers)])
+        self.apply(self._init_weights)
+        self.init_lstm()
+
+    @staticmethod
+    def _init_weights(module):
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            module.weight.data.normal_(mean=0.0, std=0.02)
+            if isinstance(module, nn.Linear) and module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
+    def init_lstm(self):
+        for layer in [self.lstm_layer1, self.lstm_layer2]:
+            for name, param in layer.named_parameters():
+                if 'weight' in name:
+                    nn.init.orthogonal_(param)
+                elif 'bias' in name:
+                    nn.init.constant_(param, 0)
+                    r_gate = param[int(0.25 * len(param)):int(0.5 * len(param))]  # Init remember gate to 1
+                    nn.init.constant_(r_gate, 1)
 
     @property
     def device(self):
@@ -91,10 +112,9 @@ class SGPT(nn.Module):
 
     def forward(self, x, lengths, hiddens=None):
         x = self.embedding_layer(x)
-        # x = rnn_utils.pack_padded_sequence(x, lengths, batch_first=True)  # What's the function of this
-        x, hiddens = self.lstm_layer(x, hiddens)
+        # x, hiddens = self.lstm_layer1(x, hiddens)
         x = self.attn_layers(x)
-        # x, _ = rnn_utils.pad_packed_sequence(x, batch_first=True)
+        x, hiddens = self.lstm_layer2(x, hiddens)
         x = self.linear_layer(x)
 
         return x, lengths, hiddens

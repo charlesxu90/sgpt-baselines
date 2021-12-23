@@ -12,9 +12,14 @@ import os
 import moses
 from utils import seq_to_smiles
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+logger.addHandler(logging.NullHandler())
 
 
-def train(train_data, valid_data, model, optim, num_epochs, save_prior_path):
+def train(train_data, valid_data, model, optim, num_epochs, save_dir):
     model.decodertf.to(device)
     model.decodertf.train()
     lowest_val = 1e9
@@ -55,21 +60,23 @@ def train(train_data, valid_data, model, optim, num_epochs, save_prior_path):
                 tqdm.write("*" * 50)
                 tqdm.write("Epoch {:3d}   step {:3d}    loss: {:5.2f}\n".format(epoch, step, loss.data))
 
-        print('average epoch loss:', total_loss / len(train_data))
+        train_loss = total_loss / len(train_data)
+        logger.info(f"train, epoch: {epoch + 1}, loss: {train_loss:.4f}")
+
         val_loss = validate(valid_data, model)
         val_losses.append((total_step, val_loss))
 
-        early_stopping(val_loss, model.decodertf, 'RE1_Prior')
+        early_stopping(val_loss, model.decodertf, save_dir + 'RE1_Prior')
 
         if early_stopping.early_stop:
-            print("Early stopping")
+            logger.info(f"Early stopped, epoch: {epoch + 1}, valid loss: {val_loss:.4f}")
             break
 
         # Save the Prior
         if val_loss < lowest_val:
             lowest_val = val_loss
-            torch.save(model.decodertf.state_dict(), save_prior_path)
-        print(f'Val Loss: {val_loss}')
+            torch.save(model.decodertf.state_dict(), save_dir + "prior.ckpt")
+        logger.info(f"valid, epoch: {epoch + 1}, loss: {val_loss:.4f}")
     return model, train_losses, val_losses
 
 
@@ -79,7 +86,7 @@ def validate(valid_data, model):
     model.decodertf.eval()
     total_loss = 0
 
-    for step, batch in tqdm(enumerate(valid_data), total=len(valid_data)):
+    for step, batch in enumerate(valid_data):
         with torch.no_grad():
             # Sample from DataLoader
             seqs = batch.long()
@@ -100,13 +107,14 @@ def sample(model, voc, batch_size=128, n_steps=5000):
         seqs = model.generate(batch_size, max_length=140, con_token_list=token_list)
         smiles = seq_to_smiles(seqs, voc)
         smiles_list.extend(smiles)
-        print('step: ', i)
+        # print('step: ', i)
     return smiles_list
 
 
-def run_eval(model, output_dir, voc, max_len=140):
+def run_eval(model, output_dir, voc, num_to_sample=10000, batch_size=128):
     print(f'Generate samples...')
-    smiles = sample(model, voc, batch_size=max_len, n_steps=50)
+    n_steps = -(num_to_sample // -batch_size)  # ceildiv
+    smiles = sample(model, voc, batch_size=batch_size, n_steps=n_steps)
     print(f'Evaluate on moses...')
     metrics = moses.get_all_metrics(smiles)
     print(metrics)
@@ -115,7 +123,12 @@ def run_eval(model, output_dir, voc, max_len=140):
     df_smiles.to_csv(output_dir + "sampled.smiles")
     print(f'Evaluation finished!')
 
-def main(train_data, valid_data, voc_path, output_dir, num_epochs=600):
+def main(args):
+    train_data = args.train_data
+    valid_data = args.valid_data
+    voc_path = args.voc_path
+    output_dir = args.output_dir
+    num_epochs = args.num_epochs
 
     """Trains the Prior decodertf"""
 
@@ -138,13 +151,13 @@ def main(train_data, valid_data, voc_path, output_dir, num_epochs=600):
 
     optim = ScheduledOptim(
         Adam(Prior.decodertf.parameters(), betas=(0.9, 0.98), eps=1e-09),
-        d_model * 8,n_warmup_steps)
+        d_model * 8, n_warmup_steps)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    save_prior_path = output_dir + "prior.ckpt"
-    model, train_losses, val_losses = train(train_data, valid_data, Prior, optim, num_epochs, save_prior_path)
-    run_eval(model, output_dir, voc, max_len=140)
+    model, train_losses, val_losses = train(train_data, valid_data, Prior, optim, num_epochs, output_dir)
+    if args.eval:
+        run_eval(model, output_dir, voc, num_to_sample=args.num_to_sample, batch_size=64)
 
     torch.cuda.empty_cache()
 
@@ -173,7 +186,9 @@ if __name__ == "__main__":
     parser.add_argument('--voc_path', action='store', help='Path to vocabulary file.')
     parser.add_argument('--output_dir', action='store', default='./result/', help='Dir to save results.')
     parser.add_argument('--num_epochs', type=int, default=600, help='Num epochs')
+    parser.add_argument('--eval', action="store_true", help='Evaluate with moses or not, default False')
+    parser.add_argument('--num_to_sample', default=10000, type=int, help='Num of samples to evaluate on moses')
 
-    arg_dict = vars(parser.parse_args())
+    args = parser.parse_args()
 
-    main(**arg_dict)
+    main(args)
